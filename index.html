@@ -135,6 +135,14 @@
   .item.done .item-name{text-decoration:line-through;color:var(--text-dim);}
   .more{width:40px;height:40px;border:none;background:none;border-radius:10px;color:var(--text-faint);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .more svg{width:18px;height:18px;}
+  .rowqty{display:flex;align-items:center;flex-shrink:0;}
+  .rowqty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--accent);
+    font-size:19px;line-height:1;padding:0;display:flex;align-items:center;justify-content:center;}
+  .rowqty button:active{background:var(--accent-soft);}
+  .rowqty button:disabled{color:var(--text-faint);opacity:.5;}
+  .rowqty span{min-width:26px;text-align:center;font-weight:600;font-size:15px;}
+  .rowqty span.one{color:var(--text-faint);font-weight:500;}
+  .item .more{width:34px;margin-left:2px;}
   .star{color:var(--warn);}
   .qty{display:inline-block;font-size:12.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;}
   .item.done .qty{color:var(--text-dim);background:var(--surface-2);}
@@ -614,6 +622,14 @@ function untick(id){
   mutate();
 }
 // Quantity is for this shop only, so it resets whenever an item comes off the list.
+// Quick −/+ on list rows. Stops at 1; taking something off the list stays a deliberate action.
+function bumpQty(id, d){
+  const it = byId(id); if (!it) return;
+  const q = Math.min(99, Math.max(1, qtyOf(it) + d));
+  if (q === qtyOf(it)) return;
+  localUpdate(id, { Qty: q > 1 ? q : null });
+  mutate();
+}
 function removeFromList(id){ localUpdate(id, { OnList:false, Ticked:false, Qty:null }); mutate(); }
 function toggleStapleOnList(id){
   const it = byId(id); if (!it) return;
@@ -963,9 +979,13 @@ function itemRow(it, inTrolley){
   return `<div class="item${inTrolley ? ' done' : ''}" onclick="tick('${it.id}')" role="checkbox" aria-checked="${inTrolley}">
     <span class="check">${ICONS.check}</span>
     <div class="item-main">
-      <div class="item-name">${escapeHtml(it.Name)}${qtyBadge(it)}${it.Note ? ` <span class="note">· ${escapeHtml(it.Note)}</span>` : ''}</div>
+      <div class="item-name">${escapeHtml(it.Name)}${inTrolley ? qtyBadge(it) : ''}${it.Note ? ` <span class="note">· ${escapeHtml(it.Note)}</span>` : ''}</div>
       ${meta.length || tags ? `<div class="item-meta">${tags}${escapeHtml(meta.join(' · '))}</div>` : ''}
     </div>
+    ${inTrolley ? '' : `<div class="rowqty" onclick="event.stopPropagation()">
+      <button onclick="bumpQty('${it.id}', -1)" aria-label="One less ${escapeHtml(it.Name)}"${qtyOf(it) <= 1 ? ' disabled' : ''}>−</button>
+      <span class="${qtyOf(it) > 1 ? '' : 'one'}" aria-label="Quantity">${qtyOf(it)}</span>
+      <button onclick="bumpQty('${it.id}', 1)" aria-label="One more ${escapeHtml(it.Name)}">+</button></div>`}
     <button class="more" onclick="event.stopPropagation(); openItem('${it.id}')" aria-label="Edit ${escapeHtml(it.Name)}">${ICONS.more}</button>
   </div>`;
 }
