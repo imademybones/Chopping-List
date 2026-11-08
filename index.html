@@ -136,6 +136,13 @@
   .more{width:40px;height:40px;border:none;background:none;border-radius:10px;color:var(--text-faint);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .more svg{width:18px;height:18px;}
   .star{color:var(--warn);}
+  .qty{display:inline-block;font-size:12.5px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:1px;}
+  .item.done .qty{color:var(--text-dim);background:var(--surface-2);}
+  .chip.on .qty{color:var(--accent-ink);background:transparent;padding:0;margin-left:0;}
+  .stepper{display:inline-flex;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .stepper button{width:46px;height:44px;border:none;background:none;font-size:22px;font-weight:500;color:var(--accent);padding:0;}
+  .stepper button:active{background:var(--surface-2);}
+  .stepper span{min-width:44px;text-align:center;font-size:17px;font-weight:600;}
   .tag{display:inline-block;font-size:11px;font-weight:600;line-height:1;padding:3px 7px;border-radius:999px;margin-right:4px;vertical-align:1px;
     color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);}
   .shops{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 16px;padding:0 16px;}
@@ -298,6 +305,8 @@
     <div class="grab"></div>
     <h2 id="item-h">Item</h2>
     <div class="field"><label class="label" for="it-name">Name</label><input class="input" id="it-name"></div>
+    <div class="field"><span class="label">Quantity</span>
+      <div class="stepper"><button type="button" onclick="stepQty(-1)" aria-label="One less">−</button><span id="it-qty" aria-live="polite">1</span><button type="button" onclick="stepQty(1)" aria-label="One more">+</button></div></div>
     <div class="field"><label class="label" for="it-note">Note</label><input class="input" id="it-note" placeholder="e.g. 2 litres, the big bag, any brand"></div>
     <div class="field"><label class="label" for="it-section">Aisle</label><select class="input" id="it-section"></select></div>
     <div class="field"><span class="label">Shops</span><div class="chips" id="it-stores"></div>
@@ -414,7 +423,7 @@ const STORES = [
   { key:'Woolworths', color:'#1F9D55', short:'Woolies' },
 ];
 const STORE_KEYS = STORES.map(s => s.key);
-const SCHEMA_VERSION = 2;          // bump when FIELD_DEFS gains a field, so existing tables get it added
+const SCHEMA_VERSION = 3;          // bump when FIELD_DEFS gains a field, so existing tables get it added
 const TROLLEY_CLEAR_HOURS = 12;   // ticked items drop off the list on their own after this long
 const POLL_MS = 15000;
 
@@ -468,13 +477,20 @@ function prettyDate(iso, withTime){
   if (withTime) s += `, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   return s;
 }
-// History is stored newest-first, one purchase per line: "ISO timestamp|who|shop" (shop is optional).
+// History is stored newest-first, one purchase per line: "ISO timestamp|who|shop|qty" (shop and qty are optional).
 function historyOf(it){
   return String(it.History || '').split('\n').map(l => l.trim()).filter(Boolean)
-    .map(l => { const [t, by, store] = l.split('|'); return { t, by: by || '', store: store || '' }; })
+    .map(l => { const [t, by, store, qty] = l.split('|'); return { t, by: by || '', store: store || '', qty: Number(qty) || 0 }; })
     .filter(h => !isNaN(new Date(h.t)));
 }
-function serializeHistory(h){ return h.slice(0, 40).map(x => `${x.t}|${x.by || ''}${x.store ? '|' + x.store : ''}`).join('\n'); }
+function serializeHistory(h){
+  return h.slice(0, 40).map(x => {
+    const parts = [x.t, x.by || ''];
+    if (x.store || x.qty > 1) parts.push(x.store || '');
+    if (x.qty > 1) parts.push(x.qty);
+    return parts.join('|');
+  }).join('\n');
+}
 // Typical gap between purchases, in days (median, ignoring repeat ticks on the same day).
 function intervalOf(it){
   const h = historyOf(it).map(x => dayStart(new Date(x.t)).getTime());
@@ -506,14 +522,26 @@ function isDue(it){
 /* ============================================================
    ITEMS
    ============================================================ */
-function blankItem(id){ return { id, Name:'', Section:'Other', OnList:false, Ticked:false, Staple:false, Note:'', LastBought:'', LastBoughtBy:'', History:'', AddedBy:'', Stores:[] }; }
+function blankItem(id){ return { id, Name:'', Section:'Other', OnList:false, Ticked:false, Staple:false, Note:'', LastBought:'', LastBoughtBy:'', History:'', AddedBy:'', Stores:[], Qty:0 }; }
 function fromRecord(r){
   const f = r.fields || {};
   return { id: r.id, Name: f.Name || '', Section: SECTION_KEYS.includes(LEGACY_SECTIONS[f.Section] || f.Section) ? (LEGACY_SECTIONS[f.Section] || f.Section) : 'Other',
     _legacySection: !!LEGACY_SECTIONS[f.Section], OnList: !!f.OnList, Ticked: !!f.Ticked,
-    Staple: !!f.Staple, Note: f.Note || '', LastBought: f.LastBought || '', LastBoughtBy: f.LastBoughtBy || '', History: f.History || '', AddedBy: f.AddedBy || '', Stores: parseStores(f.Stores) };
+    Staple: !!f.Staple, Note: f.Note || '', LastBought: f.LastBought || '', LastBoughtBy: f.LastBoughtBy || '', History: f.History || '', AddedBy: f.AddedBy || '', Stores: parseStores(f.Stores), Qty: Math.max(0, Math.round(Number(f.Qty) || 0)) };
 }
 function parseStores(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(x => STORE_KEYS.includes(x)); }
+function qtyOf(it){ return Math.max(1, Number(it.Qty) || 1); }
+function qtyBadge(it){ return qtyOf(it) > 1 ? `<span class="qty">×${qtyOf(it)}</span>` : ''; }
+// "2 milk", "2x milk", "3 × eggs", "milk x2". Leaves "2 litres milk" and names that start with a number alone.
+const UNIT_WORDS = /^(l|lt|litres?|liters?|ml|kg|g|grams?|kilos?|packs?|packets?|dozen|doz|bottles?|cans?|tins?|bags?|box(es)?|loaf|loaves|bunch(es)?|minute)\b/i;
+function parseQty(raw){
+  const s = String(raw || '').trim().replace(/\s+/g, ' ');
+  let m;
+  if (byName(s)) return { name: s, qty: 0 };
+  if ((m = s.match(/^(\d{1,2})\s*[x×]?\s+(.+)$/i)) && !UNIT_WORDS.test(m[2])) return { name: m[2], qty: +m[1] };
+  if ((m = s.match(/^(.+?)\s*[x×]\s*(\d{1,2})$/i))) return { name: m[1], qty: +m[2] };
+  return { name: s, qty: 0 };
+}
 function storesOf(it){ return Array.isArray(it.Stores) ? it.Stores : []; }
 function storeColor(k){ const s = STORES.find(x => x.key === k); return s ? s.color : '#888'; }
 function storeTags(it){ return storesOf(it).map(k => `<span class="tag" style="--c:${storeColor(k)}">${escapeHtml(k)}</span>`).join(''); }
@@ -552,15 +580,21 @@ function localDelete(id){
 }
 
 /* ---------- user actions ---------- */
-function addByName(raw){
+function addByName(raw, qty){
+  if (qty == null) ({ name: raw, qty } = parseQty(raw));
   const name = tidyName(raw);
   if (!name) return;
+  qty = Math.min(99, qty || 0);
   const ex = byName(name);
   if (ex) {
-    if (ex.OnList && !ex.Ticked) { showToast(`${ex.Name} is already on the list`); return; }
-    localUpdate(ex.id, { OnList:true, Ticked:false, AddedBy: me() });
+    if (ex.OnList && !ex.Ticked) {
+      if (qty && qty !== qtyOf(ex)) { localUpdate(ex.id, { Qty: qty > 1 ? qty : null }); mutate(); showToast(`${ex.Name} ×${qty}`); }
+      else showToast(`${ex.Name} is already on the list`);
+      return;
+    }
+    localUpdate(ex.id, { OnList:true, Ticked:false, AddedBy: me(), Qty: qty > 1 ? qty : null });
   } else {
-    localCreate({ Name: name, Section: guessSection(name), OnList:true, AddedBy: me() });
+    localCreate(Object.assign({ Name: name, Section: guessSection(name), OnList:true, AddedBy: me() }, qty > 1 ? { Qty: qty } : {}));
   }
   mutate();
 }
@@ -568,7 +602,7 @@ function tick(id){
   const it = byId(id); if (!it) return;
   if (it.Ticked) return untick(id);
   const now = new Date().toISOString();
-  const h = historyOf(it); h.unshift({ t: now, by: me(), store: storeFilter });
+  const h = historyOf(it); h.unshift({ t: now, by: me(), store: storeFilter, qty: qtyOf(it) });
   localUpdate(id, { Ticked:true, LastBought: now, LastBoughtBy: me(), History: serializeHistory(h) });
   mutate();
 }
@@ -579,18 +613,20 @@ function untick(id){
   localUpdate(id, { Ticked:false, LastBought: h[0] ? h[0].t : '', LastBoughtBy: h[0] ? h[0].by : '', History: serializeHistory(h) });
   mutate();
 }
-function removeFromList(id){ localUpdate(id, { OnList:false, Ticked:false }); mutate(); }
+// Quantity is for this shop only, so it resets whenever an item comes off the list.
+function removeFromList(id){ localUpdate(id, { OnList:false, Ticked:false, Qty:null }); mutate(); }
 function toggleStapleOnList(id){
   const it = byId(id); if (!it) return;
   if (it.OnList && !it.Ticked) { removeFromList(id); showToast(`Removed ${it.Name}`, 'Undo', () => { localUpdate(id, { OnList:true }); mutate(); }); }
-  else { localUpdate(id, { OnList:true, Ticked:false, AddedBy: me() }); mutate(); }
+  else { localUpdate(id, { OnList:true, Ticked:false, AddedBy: me(), Qty:null }); mutate(); }
 }
 function clearTrolley(){
   const got = items.filter(i => i.OnList && i.Ticked);
   if (!got.length) return;
-  got.forEach(i => localUpdate(i.id, { OnList:false, Ticked:false }));
+  const qtys = got.map(i => i.Qty);
+  got.forEach(i => localUpdate(i.id, { OnList:false, Ticked:false, Qty:null }));
   mutate();
-  showToast(`Cleared ${got.length} item${got.length === 1 ? '' : 's'}`, 'Undo', () => { got.forEach(i => localUpdate(i.id, { OnList:true, Ticked:true })); mutate(); });
+  showToast(`Cleared ${got.length} item${got.length === 1 ? '' : 's'}`, 'Undo', () => { got.forEach((i, k) => localUpdate(i.id, { OnList:true, Ticked:true, Qty: qtys[k] || null })); mutate(); });
 }
 // One-off: switch the first version's UK staple names and the "Cupboard" aisle to Australian ones.
 // Safe to run on both phones: it only touches items still using an old name or aisle.
@@ -609,7 +645,7 @@ function renameLegacy(){
 function autoClearTrolley(){
   const cutoff = Date.now() - TROLLEY_CLEAR_HOURS * 3600e3;
   let n = 0;
-  items.forEach(i => { if (i.OnList && i.Ticked && (!i.LastBought || new Date(i.LastBought).getTime() < cutoff)) { localUpdate(i.id, { OnList:false, Ticked:false }); n++; } });
+  items.forEach(i => { if (i.OnList && i.Ticked && (!i.LastBought || new Date(i.LastBought).getTime() < cutoff)) { localUpdate(i.id, { OnList:false, Ticked:false, Qty:null }); n++; } });
   if (n) mutate();
 }
 function addDefaultStaples(silent){
@@ -671,6 +707,7 @@ const FIELD_DEFS = [
   { name:'LastBoughtBy', type:'singleLineText' },
   { name:'History', type:'multilineText' },
   { name:'AddedBy', type:'singleLineText' },
+  { name:'Qty', type:'number', options:{ precision:0 } },
   { name:'Stores', type:'multipleSelects', options:{ choices: [
     { name:'Aldi', color:'blueBright' }, { name:'Coles', color:'redBright' }, { name:'Woolworths', color:'greenBright' } ] } },
 ];
@@ -763,7 +800,7 @@ async function flush(){
     }
     setSync('ok');
     if (dropped) {
-      showToast(fieldMissing ? 'Couldn’t save shop tags — add a multiple-select field called “Stores” to the Chopping List table in Airtable.'
+      showToast(fieldMissing ? 'Couldn’t save — the Chopping List table in Airtable is missing a field (“Stores” or “Qty”). Check the token has the schema.bases scopes, then reopen the app.'
         : 'A change couldn’t be saved (the item may have been deleted on the other phone).');
       refresh();
     }
@@ -926,7 +963,7 @@ function itemRow(it, inTrolley){
   return `<div class="item${inTrolley ? ' done' : ''}" onclick="tick('${it.id}')" role="checkbox" aria-checked="${inTrolley}">
     <span class="check">${ICONS.check}</span>
     <div class="item-main">
-      <div class="item-name">${escapeHtml(it.Name)}${it.Note ? ` <span class="note">· ${escapeHtml(it.Note)}</span>` : ''}</div>
+      <div class="item-name">${escapeHtml(it.Name)}${qtyBadge(it)}${it.Note ? ` <span class="note">· ${escapeHtml(it.Note)}</span>` : ''}</div>
       ${meta.length || tags ? `<div class="item-meta">${tags}${escapeHtml(meta.join(' · '))}</div>` : ''}
     </div>
     <button class="more" onclick="event.stopPropagation(); openItem('${it.id}')" aria-label="Edit ${escapeHtml(it.Name)}">${ICONS.more}</button>
@@ -985,7 +1022,7 @@ function renderStaples(){
     html += `<div class="section"><div class="section-h">${s.icon} ${s.key}</div><div class="chips">` + rows.map(i => {
       const on = i.OnList && !i.Ticked, got = i.OnList && i.Ticked;
       const ago = shortAgo(daysAgo(i.LastBought));
-      return `<button class="chip${on ? ' on' : ''}${got ? ' got' : ''}" data-id="${i.id}" onclick="chipTap(this)">${on ? '<span>✓</span>' : got ? '' : '<span class="plus">+</span>'}${escapeHtml(i.Name)}${ago ? ` <small>${ago}</small>` : ''}</button>`;
+      return `<button class="chip${on ? ' on' : ''}${got ? ' got' : ''}" data-id="${i.id}" onclick="chipTap(this)">${on ? '<span>✓</span>' : got ? '' : '<span class="plus">+</span>'}${escapeHtml(i.Name)}${on ? qtyBadge(i) : ''}${ago ? ` <small>${ago}</small>` : ''}</button>`;
     }).join('') + `</div></div>`;
   }
   return html;
@@ -1049,7 +1086,7 @@ function submitAdd(){
   if (hl) { hl.click(); return; }
   const v = input.value.trim();
   if (!v) return;
-  if (tab === 'staples') addStaple(v); else addByName(v);
+  if (tab === 'staples') addStaple(parseQty(v).name); else addByName(v);
   input.value = ''; hideSuggest();
 }
 function addStaple(raw){
@@ -1060,15 +1097,16 @@ function addStaple(raw){
 }
 function pickSuggestion(id){
   const it = byId(id); const input = document.getElementById('add-input');
+  const { qty } = parseQty(input.value);
   input.value = ''; hideSuggest();
   if (!it) return;
-  if (tab === 'staples') addStaple(it.Name); else addByName(it.Name);
+  if (tab === 'staples') addStaple(it.Name); else addByName(it.Name, qty);
   input.focus();
 }
 function hideSuggest(){ const s = document.getElementById('suggest'); if (s) { s.hidden = true; s.innerHTML = ''; } suggestIdx = -1; }
 function updateSuggest(){
   const input = document.getElementById('add-input'), box = document.getElementById('suggest');
-  const q = norm(input.value);
+  const q = norm(parseQty(input.value).name);
   suggestIdx = -1;
   if (!q) return hideSuggest();
   const matches = items.filter(i => norm(i.Name).includes(q) && (tab === 'staples' ? !i.Staple : !(i.OnList && !i.Ticked)))
@@ -1107,6 +1145,7 @@ function openItem(id){
   document.getElementById('it-note').value = it.Note;
   document.getElementById('it-section').innerHTML = SECTIONS.map(s => `<option value="${escapeHtml(s.key)}"${s.key === it.Section ? ' selected' : ''}>${s.icon} ${escapeHtml(s.key)}</option>`).join('');
   document.getElementById('it-staple').classList.toggle('on', it.Staple);
+  document.getElementById('it-qty').textContent = qtyOf(it);
   document.getElementById('it-stores').innerHTML = STORES.map(s =>
     `<button type="button" class="shop${storesOf(it).includes(s.key) ? ' on' : ''}" style="--c:${s.color}" data-store="${s.key}" onclick="this.classList.toggle('on')"><i></i>${s.key}</button>`).join('');
   fillItemSheet(it);
@@ -1121,10 +1160,11 @@ function fillItemSheet(it){
     <div class="stat"><b>${h.length}</b><span>times bought</span></div>
     <div class="stat"><b>${iv ? (iv < 14 ? iv + 'd' : Math.round(iv/7) + 'w') : '—'}</b><span>usual gap</span></div></div>`;
   html += h.length
-    ? `<div class="hist" style="margin-top:10px">${h.slice(0, 12).map(x => `<div><span>${escapeHtml(prettyDate(x.t, true))}</span><span>${escapeHtml([x.by, x.store].filter(Boolean).join(' · '))}</span></div>`).join('')}</div>`
+    ? `<div class="hist" style="margin-top:10px">${h.slice(0, 12).map(x => `<div><span>${escapeHtml(prettyDate(x.t, true))}</span><span>${escapeHtml([x.qty > 1 ? '×' + x.qty : '', x.by, x.store].filter(Boolean).join(' · '))}</span></div>`).join('')}</div>`
     : `<div class="hint">Not bought yet. It's logged here each time it gets ticked off.</div>`;
   document.getElementById('it-stats').innerHTML = html;
 }
+function stepQty(d){ const el = document.getElementById('it-qty'); el.textContent = Math.min(99, Math.max(1, (+el.textContent || 1) + d)); }
 function itemFormFields(){
   return {
     Name: tidyName(document.getElementById('it-name').value),
@@ -1132,6 +1172,7 @@ function itemFormFields(){
     Section: document.getElementById('it-section').value,
     Staple: document.getElementById('it-staple').classList.contains('on'),
     Stores: [...document.querySelectorAll('#it-stores .shop.on')].map(b => b.dataset.store),
+    Qty: +document.getElementById('it-qty').textContent > 1 ? +document.getElementById('it-qty').textContent : null,
   };
 }
 function saveItem(close){
@@ -1142,7 +1183,7 @@ function saveItem(close){
   if (clash && clash.id !== it.id) { showToast(`There's already an item called ${clash.Name}`); return false; }
   const changed = {};
   for (const k of Object.keys(f)) {
-    const same = Array.isArray(f[k]) ? f[k].join(',') === storesOf(it).join(',') : f[k] === it[k];
+    const same = k === 'Qty' ? (f.Qty || 1) === qtyOf(it) : Array.isArray(f[k]) ? f[k].join(',') === storesOf(it).join(',') : f[k] === it[k];
     if (!same) changed[k] = f[k];
   }
   if (Object.keys(changed).length) { localUpdate(it.id, changed); mutate(); }
@@ -1152,16 +1193,16 @@ function saveItem(close){
 function toggleListFromSheet(){
   if (saveItem(false) === false) return;
   const it = byId(editId); if (!it) return;
-  if (it.OnList && !it.Ticked) localUpdate(it.id, { OnList:false, Ticked:false });
+  if (it.OnList && !it.Ticked) localUpdate(it.id, { OnList:false, Ticked:false, Qty:null });
   else localUpdate(it.id, { OnList:true, Ticked:false, AddedBy: me() });
   mutate(); closeSheet('item-ov');
 }
 function markBoughtFromSheet(){
   const it = byId(editId); if (!it) return;
   const now = new Date().toISOString();
-  const h = historyOf(it); h.unshift({ t: now, by: me() });
+  const h = historyOf(it); h.unshift({ t: now, by: me(), qty: it.OnList && !it.Ticked ? qtyOf(it) : 0 });
   const f = { LastBought: now, LastBoughtBy: me(), History: serializeHistory(h) };
-  if (it.OnList && !it.Ticked) Object.assign(f, { OnList:false });
+  if (it.OnList && !it.Ticked) Object.assign(f, { OnList:false, Qty:null });
   localUpdate(it.id, f); mutate();
   fillItemSheet(byId(editId));
   showToast(`Logged ${it.Name} as bought today`);
