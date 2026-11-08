@@ -7,6 +7,7 @@ It's a single-page web app you install to your phone's home screen. It has no bu
 ## Features
 - **List**: items are grouped by aisle. Tap an item to tick it into "In the trolley", then tap **Done shopping**. Ticked items also clear themselves after 12 hours.
 - **Staples**: one-tap chips, starting with about 30 defaults (bread, milk, butter, eggs…). Press and hold a chip to edit it.
+- **Shop tags**: tag items Aldi, Coles and/or Woolworths, then tap a shop above the list to see just what you need there. Untagged items show for every shop. Each tick records which shop you were filtering by, and the Tracker shows it ("Today at Aldi").
 - **Tracker**: for every item, when it was last bought, by whom, how often, and the full history. Staples you've gone longer than usual without show up as "Probably running low".
 - Typing suggests things you've bought before, new items are put in an aisle automatically, changes made with poor signal are queued until you're back online, and there's light and dark mode.
 

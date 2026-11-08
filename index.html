@@ -136,6 +136,18 @@
   .more{width:40px;height:40px;border:none;background:none;border-radius:10px;color:var(--text-faint);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .more svg{width:18px;height:18px;}
   .star{color:var(--warn);}
+  .tag{display:inline-block;font-size:11px;font-weight:600;line-height:1;padding:3px 7px;border-radius:999px;margin-right:4px;vertical-align:1px;
+    color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);}
+  .shops{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 16px;padding:0 16px;}
+  .shops::after{content:"";flex:0 0 1px;}
+  .shops::-webkit-scrollbar{display:none;}
+  .shop{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);
+    padding:8px 10px;border-radius:999px;font-size:13.5px;font-weight:500;}
+  .shop i{width:8px;height:8px;border-radius:50%;background:var(--c);}
+  .shop small{color:var(--text-dim);font-size:12px;}
+  .shop.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--surface));font-weight:600;}
+  .hidden-note{font-size:13px;color:var(--text-dim);margin:-4px 2px 16px;}
+  .hidden-note button{border:none;background:none;padding:0;color:var(--accent);font-weight:600;font-size:13px;}
 
   .due{background:var(--accent-soft);border-radius:14px;padding:12px 14px;margin-bottom:18px;}
   .due-h{font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
@@ -288,6 +300,8 @@
     <div class="field"><label class="label" for="it-name">Name</label><input class="input" id="it-name"></div>
     <div class="field"><label class="label" for="it-note">Note</label><input class="input" id="it-note" placeholder="e.g. 2 pints, the big bag, any brand"></div>
     <div class="field"><label class="label" for="it-section">Aisle</label><select class="input" id="it-section"></select></div>
+    <div class="field"><span class="label">Shops</span><div class="chips" id="it-stores"></div>
+      <div class="hint">Where you get it. Leave them all off if any shop will do.</div></div>
     <div class="set-row">
       <div class="grow"><div class="t">Staple</div><div class="d">Keep it in your staples so it's one tap to add.</div></div>
       <button class="switch" id="it-staple" onclick="this.classList.toggle('on')" aria-label="Staple"></button>
@@ -389,6 +403,14 @@ const ICONS = {
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
 };
+// Shop tags. Items with no tag show up whichever shop you've picked.
+const STORES = [
+  { key:'Aldi',       color:'#2F6FD0' },
+  { key:'Coles',      color:'#E0352B' },
+  { key:'Woolworths', color:'#1F9D55', short:'Woolies' },
+];
+const STORE_KEYS = STORES.map(s => s.key);
+const SCHEMA_VERSION = 2;          // bump when FIELD_DEFS gains a field, so existing tables get it added
 const TROLLEY_CLEAR_HOURS = 12;   // ticked items drop off the list on their own after this long
 const POLL_MS = 15000;
 
@@ -400,6 +422,8 @@ let items = readJSON('cl_items', []);
 let pending = readJSON('cl_pending', null) || { creates: [], updates: {}, deletes: [] };
 let tab = readLS('cl_tab') || 'list';
 let trackerSort = readLS('cl_tsort') || 'recent';
+let storeFilter = STORE_KEYS.includes(readLS('cl_store')) ? readLS('cl_store') : '';
+let schemaReady = Promise.resolve();
 let trackerQuery = '';
 let editId = null;
 let lastSync = 0, syncState = 'ok', syncErr = null;
@@ -440,13 +464,13 @@ function prettyDate(iso, withTime){
   if (withTime) s += `, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   return s;
 }
-// History is stored newest-first, one purchase per line: "ISO timestamp|who".
+// History is stored newest-first, one purchase per line: "ISO timestamp|who|shop" (shop is optional).
 function historyOf(it){
   return String(it.History || '').split('\n').map(l => l.trim()).filter(Boolean)
-    .map(l => { const [t, by] = l.split('|'); return { t, by: by || '' }; })
+    .map(l => { const [t, by, store] = l.split('|'); return { t, by: by || '', store: store || '' }; })
     .filter(h => !isNaN(new Date(h.t)));
 }
-function serializeHistory(h){ return h.slice(0, 40).map(x => `${x.t}|${x.by || ''}`).join('\n'); }
+function serializeHistory(h){ return h.slice(0, 40).map(x => `${x.t}|${x.by || ''}${x.store ? '|' + x.store : ''}`).join('\n'); }
 // Typical gap between purchases, in days (median, ignoring repeat ticks on the same day).
 function intervalOf(it){
   const h = historyOf(it).map(x => dayStart(new Date(x.t)).getTime());
@@ -478,12 +502,18 @@ function isDue(it){
 /* ============================================================
    ITEMS
    ============================================================ */
-function blankItem(id){ return { id, Name:'', Section:'Other', OnList:false, Ticked:false, Staple:false, Note:'', LastBought:'', LastBoughtBy:'', History:'', AddedBy:'' }; }
+function blankItem(id){ return { id, Name:'', Section:'Other', OnList:false, Ticked:false, Staple:false, Note:'', LastBought:'', LastBoughtBy:'', History:'', AddedBy:'', Stores:[] }; }
 function fromRecord(r){
   const f = r.fields || {};
   return { id: r.id, Name: f.Name || '', Section: SECTION_KEYS.includes(f.Section) ? f.Section : 'Other', OnList: !!f.OnList, Ticked: !!f.Ticked,
-    Staple: !!f.Staple, Note: f.Note || '', LastBought: f.LastBought || '', LastBoughtBy: f.LastBoughtBy || '', History: f.History || '', AddedBy: f.AddedBy || '' };
+    Staple: !!f.Staple, Note: f.Note || '', LastBought: f.LastBought || '', LastBoughtBy: f.LastBoughtBy || '', History: f.History || '', AddedBy: f.AddedBy || '', Stores: parseStores(f.Stores) };
 }
+function parseStores(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(x => STORE_KEYS.includes(x)); }
+function storesOf(it){ return Array.isArray(it.Stores) ? it.Stores : []; }
+function storeColor(k){ const s = STORES.find(x => x.key === k); return s ? s.color : '#888'; }
+function storeTags(it){ return storesOf(it).map(k => `<span class="tag" style="--c:${storeColor(k)}">${escapeHtml(k)}</span>`).join(''); }
+// With a shop picked, show what's tagged for it plus anything untagged.
+function availableAt(it, store){ const st = storesOf(it); return !store || !st.length || st.includes(store); }
 function byId(id){ return items.find(i => i.id === id); }
 function byName(name){ const n = norm(name); return items.find(i => norm(i.Name) === n); }
 function norm(s){ return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
@@ -533,7 +563,7 @@ function tick(id){
   const it = byId(id); if (!it) return;
   if (it.Ticked) return untick(id);
   const now = new Date().toISOString();
-  const h = historyOf(it); h.unshift({ t: now, by: me() });
+  const h = historyOf(it); h.unshift({ t: now, by: me(), store: storeFilter });
   localUpdate(id, { Ticked:true, LastBought: now, LastBoughtBy: me(), History: serializeHistory(h) });
   mutate();
 }
@@ -623,14 +653,17 @@ const FIELD_DEFS = [
   { name:'LastBoughtBy', type:'singleLineText' },
   { name:'History', type:'multilineText' },
   { name:'AddedBy', type:'singleLineText' },
+  { name:'Stores', type:'multipleSelects', options:{ choices: [
+    { name:'Aldi', color:'blueBright' }, { name:'Coles', color:'redBright' }, { name:'Woolworths', color:'greenBright' } ] } },
 ];
-// Makes sure the "Chopping List" table (and every field) exists. Returns true if it had to create the table.
+// Makes sure the "Chopping List" table (and every field) exists. Returns true if it had to create the table,
+// 'noschema' if the token can't read the schema (so fields couldn't be checked), otherwise false.
 async function ensureTable(){
   const meta = `https://api.airtable.com/v0/meta/bases/${CONFIG.baseId}/tables`;
   const res = await fetch(meta, { headers: atHeaders() });
   if (!res.ok) {
     // No schema scopes: fall back to checking the table is readable.
-    if (res.status === 403 || res.status === 401) { await listAll(); return false; }
+    if (res.status === 403 || res.status === 401) { await listAll(); return 'noschema'; }
     throw await atError(res, 'connect');
   }
   const tbl = (await res.json()).tables.find(t => t.name === TABLE);
@@ -648,6 +681,14 @@ async function ensureTable(){
 }
 
 /* ---------- sync ---------- */
+// Existing tables made by an older version get any new fields added once.
+async function upgradeSchema(){
+  if ((CONFIG.schema || 1) >= SCHEMA_VERSION) return;
+  try {
+    if (await ensureTable() !== 'noschema') { CONFIG.schema = SCHEMA_VERSION; saveConfig(); }
+  } catch (e) { console.warn('Schema upgrade failed', e); }
+}
+function isUnknownField(e){ return e && e.status === 422 && /UNKNOWN_FIELD/i.test(String(e.detail || e.message)); }
 function hasPending(){ return pending.creates.length || Object.keys(pending.updates).length || pending.deletes.length; }
 function scheduleFlush(ms){ clearTimeout(flushTimer); flushTimer = setTimeout(flush, ms == null ? 350 : ms); }
 function isPermanent(e){ return e && e.status && e.status >= 400 && e.status < 500 && ![401, 403, 408, 429].includes(e.status); }
@@ -663,7 +704,8 @@ async function flush(){
   if (flushing) { flushAgain = true; return; }
   if (!hasPending()) { if (syncState !== 'error') setSync('ok'); return; }
   flushing = true; setSync('saving');
-  let dropped = 0;
+  let dropped = 0, fieldMissing = false;
+  await schemaReady;
   try {
     // 1. New items. Taken off the queue while in flight so edits made meanwhile land in pending.updates.
     while (pending.creates.length) {
@@ -673,7 +715,7 @@ async function flush(){
         batch.forEach((b, i) => remapId(b.tmpId, recs[i].id));
         render();   // buttons on screen still carry the temporary ids
       } catch (e) {
-        if (isPermanent(e)) { dropped += batch.length; batch.forEach(b => { items = items.filter(i => i.id !== b.tmpId); delete pending.updates[b.tmpId]; }); }
+        if (isPermanent(e)) { dropped += batch.length; if (isUnknownField(e)) fieldMissing = true; batch.forEach(b => { items = items.filter(i => i.id !== b.tmpId); delete pending.updates[b.tmpId]; }); }
         else {
           batch.forEach(b => { if (pending.updates[b.tmpId]) { Object.assign(b.fields, pending.updates[b.tmpId]); delete pending.updates[b.tmpId]; } });
           pending.creates.unshift(...batch); throw e;
@@ -688,7 +730,7 @@ async function flush(){
       group.forEach(id => delete pending.updates[id]);
       try { await atUpdate(snap); }
       catch (e) {
-        if (isPermanent(e)) dropped += snap.length;
+        if (isPermanent(e)) { dropped += snap.length; if (isUnknownField(e)) fieldMissing = true; }
         else { snap.forEach(s => { pending.updates[s.id] = Object.assign({}, s.fields, pending.updates[s.id] || {}); }); throw e; }
       }
       persist();
@@ -702,7 +744,11 @@ async function flush(){
       persist();
     }
     setSync('ok');
-    if (dropped) { showToast('A change couldn’t be saved (the item may have been deleted on the other phone).'); refresh(); }
+    if (dropped) {
+      showToast(fieldMissing ? 'Couldn’t save shop tags — add a multiple-select field called “Stores” to the Chopping List table in Airtable.'
+        : 'A change couldn’t be saved (the item may have been deleted on the other phone).');
+      refresh();
+    }
   } catch (e) {
     console.error(e);
     setSync(navigator.onLine === false || !e.status ? 'offline' : 'error', e);
@@ -776,11 +822,12 @@ async function connect(baseId, pat, name){
   try {
     const created = await ensureTable();
     const recs = await listAll();
+    if (created !== 'noschema') CONFIG.schema = SCHEMA_VERSION;
     saveConfig();
     items = recs.map(fromRecord); pending = { creates: [], updates: {}, deletes: [] }; persist();
     showApp();
-    if (created || !recs.length) addDefaultStaples(true);
-    if (created) setTab('staples');
+    if (created === true || !recs.length) addDefaultStaples(true);
+    if (created === true) setTab('staples');
   } catch (e) {
     console.error(e);
     CONFIG = null;
@@ -854,11 +901,14 @@ function itemRow(it, inTrolley){
     const lb = lastBoughtText(it); if (lb) meta.push(lb);
     if (it.AddedBy && it.AddedBy !== me()) meta.push(`added by ${it.AddedBy}`);
   }
+  if (inTrolley && it.LastBought) { const h0 = historyOf(it)[0]; if (h0 && h0.t === it.LastBought && h0.store) meta.push(`at ${h0.store}`); }
+  // Tags are redundant once you've filtered to that shop, so only show them on the full list.
+  const tags = !inTrolley && !storeFilter ? storeTags(it) : '';
   return `<div class="item${inTrolley ? ' done' : ''}" onclick="tick('${it.id}')" role="checkbox" aria-checked="${inTrolley}">
     <span class="check">${ICONS.check}</span>
     <div class="item-main">
       <div class="item-name">${escapeHtml(it.Name)}${it.Note ? ` <span class="note">· ${escapeHtml(it.Note)}</span>` : ''}</div>
-      ${meta.length ? `<div class="item-meta">${escapeHtml(meta.join(' · '))}</div>` : ''}
+      ${meta.length || tags ? `<div class="item-meta">${tags}${escapeHtml(meta.join(' · '))}</div>` : ''}
     </div>
     <button class="more" onclick="event.stopPropagation(); openItem('${it.id}')" aria-label="Edit ${escapeHtml(it.Name)}">${ICONS.more}</button>
   </div>`;
@@ -873,14 +923,21 @@ function renderList(){
       due.map(i => `<button class="chip" onclick="addByName(${jsArg(i.Name)})"><span class="plus">+</span>${escapeHtml(i.Name)} <small>${shortAgo(daysAgo(i.LastBought))}</small></button>`).join('') +
       `</div></div>`;
   }
-  const open = items.filter(i => i.OnList && !i.Ticked);
+  const allOpen = items.filter(i => i.OnList && !i.Ticked);
+  const open = allOpen.filter(i => availableAt(i, storeFilter));
   const got = items.filter(i => i.OnList && i.Ticked).sort((a, b) => String(b.LastBought).localeCompare(String(a.LastBought)));
-  if (!open.length && !got.length) {
+  if (allOpen.length || got.length) {
+    html += `<div class="shops"><button class="shop${storeFilter ? '' : ' on'}" style="--c:var(--accent)" onclick="setStore('')">All <small>${allOpen.length}</small></button>` +
+      STORES.map(s => `<button class="shop${storeFilter === s.key ? ' on' : ''}" style="--c:${s.color}" onclick="setStore('${s.key}')"><i></i>${s.short || s.key} <small>${allOpen.filter(i => availableAt(i, s.key)).length}</small></button>`).join('') + `</div>`;
+    const hidden = allOpen.length - open.length;
+    if (hidden) html += `<div class="hidden-note">${hidden} item${hidden === 1 ? '' : 's'} for other shops hidden · <button onclick="setStore('')">Show all</button></div>`;
+  }
+  if (!open.length && !got.length && !allOpen.length) {
     return html + `<div class="empty"><div class="big">🧺</div><h2>Nothing on the list</h2>
       <p>Type above to add something, or pick from your staples.</p>
       <button class="btn" onclick="setTab('staples')">Browse staples</button></div>`;
   }
-  if (!open.length) html += `<div class="empty" style="padding:24px 20px 28px"><div class="big">🎉</div><h2>All done</h2><p>Everything's in the trolley.</p></div>`;
+  if (!open.length) html += `<div class="empty" style="padding:24px 20px 28px"><div class="big">🎉</div><h2>All done${storeFilter ? ' at ' + storeFilter : ''}</h2><p>${allOpen.length ? 'The rest is for other shops.' : 'Everything’s in the trolley.'}</p></div>`;
   for (const s of SECTIONS) {
     const rows = open.filter(i => i.Section === s.key).sort(byNameSort);
     if (!rows.length) continue;
@@ -895,6 +952,7 @@ function renderList(){
   }
   return html;
 }
+function setStore(k){ storeFilter = k; writeLS('cl_store', k); render(); }
 function renderStaples(){
   const staples = items.filter(i => i.Staple);
   let html = `<p class="hint" style="margin:0 0 14px">Tap to add to the list, tap again to take it off. Press and hold one to edit it.</p>`;
@@ -931,14 +989,15 @@ function renderTracker(){
   if (!list.length) return html + `<div class="empty"><div class="big">🕰️</div><h2>${q ? 'No matches' : 'Nothing tracked yet'}</h2><p>${q ? 'Try another search.' : 'Every time you tick something off, it gets logged here.'}</p></div>`;
   html += `<div class="card">` + list.map(it => {
     const n = daysAgo(it.LastBought), iv = intervalOf(it), count = bought(it);
-    const line1 = n == null ? 'Not bought yet' : `${relDays(n)[0].toUpperCase() + relDays(n).slice(1)} · ${prettyDate(it.LastBought)}${it.LastBoughtBy ? ' · ' + it.LastBoughtBy : ''}`;
+    const h0 = historyOf(it)[0], at = h0 && h0.t === it.LastBought && h0.store ? ' at ' + h0.store : '';
+    const line1 = n == null ? 'Not bought yet' : `${relDays(n)[0].toUpperCase() + relDays(n).slice(1)}${at} · ${prettyDate(it.LastBought)}${it.LastBoughtBy ? ' · ' + it.LastBoughtBy : ''}`;
     const line2 = count ? `Bought ${count === 1 ? 'once' : count + ' times'}${iv ? ' · ' + intervalLabel(iv) : ''}` : '';
     const right = it.OnList && !it.Ticked ? '<span class="badge">On list</span>'
       : isDue(it) ? `<button class="btn small" onclick="event.stopPropagation(); addByName(${jsArg(it.Name)})">+ Add</button><span class="badge warn">Due</span>`
       : `<button class="btn secondary small" onclick="event.stopPropagation(); addByName(${jsArg(it.Name)})">+ Add</button>`;
     return `<div class="item" onclick="openItem('${it.id}')">
       <div class="item-main" style="padding:10px 0">
-        <div class="item-name">${it.Staple ? '<span class="star">★</span> ' : ''}${escapeHtml(it.Name)}</div>
+        <div class="item-name">${it.Staple ? '<span class="star">★</span> ' : ''}${escapeHtml(it.Name)} ${storeTags(it)}</div>
         <div class="item-meta">${escapeHtml(line1)}</div>
         ${line2 ? `<div class="item-meta">${escapeHtml(line2)}</div>` : ''}
       </div>
@@ -1029,6 +1088,8 @@ function openItem(id){
   document.getElementById('it-note').value = it.Note;
   document.getElementById('it-section').innerHTML = SECTIONS.map(s => `<option value="${escapeHtml(s.key)}"${s.key === it.Section ? ' selected' : ''}>${s.icon} ${escapeHtml(s.key)}</option>`).join('');
   document.getElementById('it-staple').classList.toggle('on', it.Staple);
+  document.getElementById('it-stores').innerHTML = STORES.map(s =>
+    `<button type="button" class="shop${storesOf(it).includes(s.key) ? ' on' : ''}" style="--c:${s.color}" data-store="${s.key}" onclick="this.classList.toggle('on')"><i></i>${s.key}</button>`).join('');
   fillItemSheet(it);
   openSheet('item-ov');
 }
@@ -1041,7 +1102,7 @@ function fillItemSheet(it){
     <div class="stat"><b>${h.length}</b><span>times bought</span></div>
     <div class="stat"><b>${iv ? (iv < 14 ? iv + 'd' : Math.round(iv/7) + 'w') : '—'}</b><span>usual gap</span></div></div>`;
   html += h.length
-    ? `<div class="hist" style="margin-top:10px">${h.slice(0, 12).map(x => `<div><span>${escapeHtml(prettyDate(x.t, true))}</span><span>${escapeHtml(x.by)}</span></div>`).join('')}</div>`
+    ? `<div class="hist" style="margin-top:10px">${h.slice(0, 12).map(x => `<div><span>${escapeHtml(prettyDate(x.t, true))}</span><span>${escapeHtml([x.by, x.store].filter(Boolean).join(' · '))}</span></div>`).join('')}</div>`
     : `<div class="hint">Not bought yet. It's logged here each time it gets ticked off.</div>`;
   document.getElementById('it-stats').innerHTML = html;
 }
@@ -1051,6 +1112,7 @@ function itemFormFields(){
     Note: document.getElementById('it-note').value.trim(),
     Section: document.getElementById('it-section').value,
     Staple: document.getElementById('it-staple').classList.contains('on'),
+    Stores: [...document.querySelectorAll('#it-stores .shop.on')].map(b => b.dataset.store),
   };
 }
 function saveItem(close){
@@ -1060,7 +1122,10 @@ function saveItem(close){
   const clash = byName(f.Name);
   if (clash && clash.id !== it.id) { showToast(`There's already an item called ${clash.Name}`); return false; }
   const changed = {};
-  for (const k of Object.keys(f)) if (f[k] !== it[k]) changed[k] = f[k];
+  for (const k of Object.keys(f)) {
+    const same = Array.isArray(f[k]) ? f[k].join(',') === storesOf(it).join(',') : f[k] === it[k];
+    if (!same) changed[k] = f[k];
+  }
   if (Object.keys(changed).length) { localUpdate(it.id, changed); mutate(); }
   if (close !== false) closeSheet('item-ov');
   return true;
@@ -1151,7 +1216,8 @@ function showApp(){
   applyTheme();
   render();
   setSync(hasPending() ? 'saving' : 'ok');
-  refresh();
+  schemaReady = upgradeSchema();
+  schemaReady.then(() => refresh());
   startPolling();
 }
 window.addEventListener('DOMContentLoaded', () => {
