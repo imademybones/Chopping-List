@@ -298,7 +298,7 @@
     <div class="grab"></div>
     <h2 id="item-h">Item</h2>
     <div class="field"><label class="label" for="it-name">Name</label><input class="input" id="it-name"></div>
-    <div class="field"><label class="label" for="it-note">Note</label><input class="input" id="it-note" placeholder="e.g. 2 pints, the big bag, any brand"></div>
+    <div class="field"><label class="label" for="it-note">Note</label><input class="input" id="it-note" placeholder="e.g. 2 litres, the big bag, any brand"></div>
     <div class="field"><label class="label" for="it-section">Aisle</label><select class="input" id="it-section"></select></div>
     <div class="field"><span class="label">Shops</span><div class="chips" id="it-stores"></div>
       <div class="hint">Where you get it. Leave them all off if any shop will do.</div></div>
@@ -368,7 +368,7 @@ const SECTIONS = [
   { key:'Dairy & Eggs', icon:'🧀' },
   { key:'Meat & Fish',  icon:'🍗' },
   { key:'Frozen',       icon:'🧊' },
-  { key:'Cupboard',     icon:'🥫' },
+  { key:'Pantry',       icon:'🥫' },
   { key:'Drinks',       icon:'🧃' },
   { key:'Household',    icon:'🧽' },
   { key:'Toiletries',   icon:'🧴' },
@@ -381,23 +381,27 @@ const DEFAULT_STAPLES = [
   ['Bananas','Fruit & Veg'], ['Apples','Fruit & Veg'], ['Onions','Fruit & Veg'], ['Potatoes','Fruit & Veg'], ['Tomatoes','Fruit & Veg'], ['Carrots','Fruit & Veg'], ['Garlic','Fruit & Veg'],
   ['Chicken','Meat & Fish'], ['Mince','Meat & Fish'], ['Bacon','Meat & Fish'],
   ['Frozen peas','Frozen'],
-  ['Pasta','Cupboard'], ['Rice','Cupboard'], ['Cereal','Cupboard'], ['Tinned tomatoes','Cupboard'], ['Olive oil','Cupboard'],
+  ['Pasta','Pantry'], ['Rice','Pantry'], ['Cereal','Pantry'], ['Canned tomatoes','Pantry'], ['Olive oil','Pantry'],
   ['Tea bags','Drinks'], ['Coffee','Drinks'], ['Orange juice','Drinks'],
-  ['Toilet roll','Household'], ['Kitchen roll','Household'], ['Washing-up liquid','Household'], ['Bin bags','Household'], ['Laundry detergent','Household'],
+  ['Toilet paper','Household'], ['Paper towel','Household'], ['Dishwashing liquid','Household'], ['Bin liners','Household'], ['Laundry liquid','Household'],
   ['Toothpaste','Toiletries'], ['Shampoo','Toiletries'],
 ];
+// Old (UK) staple names from the first version, renamed once on each list. Aisles get the same treatment.
+const LEGACY_NAMES = { 'toilet roll':'Toilet paper', 'kitchen roll':'Paper towel', 'washing-up liquid':'Dishwashing liquid',
+  'bin bags':'Bin liners', 'laundry detergent':'Laundry liquid', 'tinned tomatoes':'Canned tomatoes' };
+const LEGACY_SECTIONS = { 'Cupboard':'Pantry' };
 // First match wins, so the specific phrases come before the single words they contain.
 const SECTION_RULES = [
-  [/peanut butter|nut butter|tinned|tin of|baked beans|stock cube|tomato (puree|paste|sauce)|pasta sauce|soup/, 'Cupboard'],
-  [/ice ?cream|ice lolly|frozen|fish fingers|oven chips|\bchips\b|\bice\b/, 'Frozen'],
-  [/toilet|kitchen roll|bin bag|washing|laundry|detergent|bleach|sponge|foil|cling|dishwasher|fabric|cleaner|batter(y|ies)|light ?bulb|tissue|wipes|bags/, 'Household'],
-  [/shampoo|conditioner|soap|toothpaste|toothbrush|deodorant|shower gel|razor|plaster|paracetamol|ibuprofen|moisturi|sun ?cream|floss|mouthwash/, 'Toiletries'],
-  [/coffee|\btea\b|tea bags|juice|water|squash|wine|beer|lager|cider|cola|coke|lemonade|tonic|gin|vodka|whisk/, 'Drinks'],
+  [/peanut butter|nut butter|tinned|canned|tin of|baked beans|stock cube|tomato (puree|paste|sauce)|pasta sauce|soup|vegemite/, 'Pantry'],
+  [/ice ?cream|icy pole|ice lolly|frozen|fish fingers|oven chips|\bice\b/, 'Frozen'],
+  [/toilet|paper towel|kitchen roll|bin bag|bin liner|garbage bag|washing|dishwashing|laundry|detergent|bleach|sponge|foil|cling|glad wrap|dishwasher|fabric|cleaner|batter(y|ies)|light ?bulb|tissue|wipes|bags/, 'Household'],
+  [/shampoo|conditioner|soap|body wash|toothpaste|toothbrush|deodorant|shower gel|razor|band-?aid|plaster|panadol|paracetamol|nurofen|ibuprofen|moisturi|sun ?(cream|screen)|floss|mouthwash/, 'Toiletries'],
+  [/coffee|\btea\b|tea bags|juice|water|cordial|soft ?drink|wine|beer|lager|cider|cola|coke|lemonade|tonic|gin|vodka|whisk|\brum\b/, 'Drinks'],
   [/bread|\brolls?\b|bagel|wrap|croissant|crumpet|muffin|baguette|pitta|naan|tortilla|brioche|cake/, 'Bakery'],
   [/milk|butter|cheese|cheddar|mozzarella|parmesan|feta|halloumi|yog|cream|\beggs?\b|creme|custard/, 'Dairy & Eggs'],
-  [/chicken|beef|mince|pork|bacon|sausage|\bham\b|lamb|fish|salmon|cod|haddock|prawn|turkey|steak|chorizo|salami|tuna steak/, 'Meat & Fish'],
-  [/apple|banana|orange|lemon|lime|grape|berr|melon|pear|plum|peach|mango|pineapple|kiwi|onion|potato|carrot|tomato|lettuce|salad|cucumber|pepper|broccoli|spinach|garlic|mushroom|avocado|courgette|leek|celery|herb|basil|coriander|parsley|ginger|kale|cabbage|sweetcorn|parsnip|beetroot|aubergine|chilli|spring onion|veg|fruit/, 'Fruit & Veg'],
-  [/pasta|spaghetti|penne|rice|flour|sugar|\boil\b|cereal|oats|porridge|granola|beans|lentil|chickpea|sauce|stock|salt|spice|jam|honey|marmalade|biscuit|crisps|chocolate|noodle|ketchup|mayo|mustard|vinegar|tuna|nuts|crackers|cous ?cous|gravy/, 'Cupboard'],
+  [/chicken|beef|mince|pork|bacon|sausage|snags|\bham\b|lamb|barramundi|fish|salmon|cod|haddock|prawn|turkey|steak|chorizo|salami|tuna steak/, 'Meat & Fish'],
+  [/apple|banana|orange|lemon|lime|grape|berr|melon|pear|plum|peach|mango|pineapple|kiwi|onion|potato|carrot|tomato|lettuce|salad|cucumber|capsicum|zucchini|eggplant|rockmelon|pepper|broccoli|spinach|garlic|mushroom|avocado|courgette|leek|celery|herb|basil|coriander|parsley|ginger|kale|cabbage|sweetcorn|parsnip|beetroot|aubergine|chilli|spring onion|veg|fruit/, 'Fruit & Veg'],
+  [/pasta|spaghetti|penne|rice|flour|sugar|\boil\b|cereal|oats|porridge|granola|beans|lentil|chickpea|sauce|stock|salt|spice|jam|honey|marmalade|biscuit|bikkie|tim ?tam|crisps|\bchips\b|lollies|chocolate|noodle|ketchup|mayo|mustard|vinegar|tuna|nuts|crackers|cous ?cous|gravy/, 'Pantry'],
 ];
 const ICONS = {
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
@@ -505,7 +509,8 @@ function isDue(it){
 function blankItem(id){ return { id, Name:'', Section:'Other', OnList:false, Ticked:false, Staple:false, Note:'', LastBought:'', LastBoughtBy:'', History:'', AddedBy:'', Stores:[] }; }
 function fromRecord(r){
   const f = r.fields || {};
-  return { id: r.id, Name: f.Name || '', Section: SECTION_KEYS.includes(f.Section) ? f.Section : 'Other', OnList: !!f.OnList, Ticked: !!f.Ticked,
+  return { id: r.id, Name: f.Name || '', Section: SECTION_KEYS.includes(LEGACY_SECTIONS[f.Section] || f.Section) ? (LEGACY_SECTIONS[f.Section] || f.Section) : 'Other',
+    _legacySection: !!LEGACY_SECTIONS[f.Section], OnList: !!f.OnList, Ticked: !!f.Ticked,
     Staple: !!f.Staple, Note: f.Note || '', LastBought: f.LastBought || '', LastBoughtBy: f.LastBoughtBy || '', History: f.History || '', AddedBy: f.AddedBy || '', Stores: parseStores(f.Stores) };
 }
 function parseStores(v){ return (Array.isArray(v) ? v : String(v || '').split(',')).map(x => String(x).trim()).filter(x => STORE_KEYS.includes(x)); }
@@ -586,6 +591,19 @@ function clearTrolley(){
   got.forEach(i => localUpdate(i.id, { OnList:false, Ticked:false }));
   mutate();
   showToast(`Cleared ${got.length} item${got.length === 1 ? '' : 's'}`, 'Undo', () => { got.forEach(i => localUpdate(i.id, { OnList:true, Ticked:true })); mutate(); });
+}
+// One-off: switch the first version's UK staple names and the "Cupboard" aisle to Australian ones.
+// Safe to run on both phones: it only touches items still using an old name or aisle.
+function renameLegacy(){
+  let n = 0;
+  for (const it of items) {
+    const f = {};
+    const to = LEGACY_NAMES[norm(it.Name)];
+    if (to && !byName(to)) f.Name = to;
+    if (it._legacySection) { f.Section = it.Section; delete it._legacySection; }
+    if (Object.keys(f).length) { localUpdate(it.id, f); n++; }
+  }
+  if (n) mutate();
 }
 // Ticked items quietly leave the list once the shop is long over.
 function autoClearTrolley(){
@@ -774,6 +792,7 @@ async function refresh(manual){
     lastSync = Date.now();
     if (!hasPending()) setSync('ok');
     persist();
+    renameLegacy();
     autoClearTrolley();
     render();
     if (manual) showToast('Up to date');
