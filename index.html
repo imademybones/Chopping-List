@@ -153,13 +153,16 @@
   .stepper span{min-width:44px;text-align:center;font-size:17px;font-weight:600;}
   .tag{display:inline-block;font-size:11px;font-weight:600;line-height:1;padding:3px 7px;border-radius:999px;margin-right:4px;vertical-align:1px;
     color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);}
-  .shops{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 16px;padding:0 16px;}
+  .shops{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 16px;padding:0 16px;}
   .shops::after{content:"";flex:0 0 1px;}
   .shops::-webkit-scrollbar{display:none;}
   .shop{flex-shrink:0;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);background:var(--surface);
     padding:8px 10px;border-radius:999px;font-size:13.5px;font-weight:500;}
   .shop i{width:8px;height:8px;border-radius:50%;background:var(--c);}
   .shop small{color:var(--text-dim);font-size:12px;}
+  .shops .shop{padding:7px 8px;gap:4px;font-size:13px;}
+  .shops .shop i{display:none;}   /* in the filter bar the count carries the shop colour instead of a dot, so all five fit */
+  .shops .shop small{font-size:12px;font-weight:700;color:var(--c);}
   .shop.on{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--surface));font-weight:600;}
   .hidden-note{font-size:13px;color:var(--text-dim);margin:-4px 2px 16px;}
   .hidden-note button{border:none;background:none;padding:0;color:var(--accent);font-weight:600;font-size:13px;}
@@ -433,6 +436,7 @@ const STORES = [
   { key:'Aldi',       color:'#2F6FD0' },
   { key:'Coles',      color:'#E0352B' },
   { key:'Woolworths', color:'#1F9D55', short:'Woolies' },
+  { key:'Big W',      color:'#8A4FD0' },
 ];
 const STORE_KEYS = STORES.map(s => s.key);
 const SCHEMA_VERSION = 3;          // bump when FIELD_DEFS gains a field, so existing tables get it added
@@ -729,7 +733,7 @@ const FIELD_DEFS = [
   { name:'AddedBy', type:'singleLineText' },
   { name:'Qty', type:'number', options:{ precision:0 } },
   { name:'Stores', type:'multipleSelects', options:{ choices: [
-    { name:'Aldi', color:'blueBright' }, { name:'Coles', color:'redBright' }, { name:'Woolworths', color:'greenBright' } ] } },
+    { name:'Aldi', color:'blueBright' }, { name:'Coles', color:'redBright' }, { name:'Woolworths', color:'greenBright' }, { name:'Big W', color:'purpleBright' } ] } },
 ];
 // Makes sure the "Chopping List" table (and every field) exists. Returns true if it had to create the table,
 // 'noschema' if the token can't read the schema (so fields couldn't be checked), otherwise false.

@@ -1,4 +1,4 @@
-const CACHE = 'chopping-list-v7';
+const CACHE = 'chopping-list-v8';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
