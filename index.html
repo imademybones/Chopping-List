@@ -272,7 +272,7 @@
     <div class="wrap">
       <div class="title-row">
         <h1 id="title">Chopping List</h1>
-        <button class="sync" id="sync" onclick="refresh(true)" aria-label="Sync now"><i></i><span id="sync-txt"></span></button>
+        <button class="sync" id="sync" onclick="syncTap()" aria-label="Sync now"><i></i><span id="sync-txt"></span></button>
         <button class="icon-btn" onclick="openSettings()" aria-label="Settings">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
@@ -368,7 +368,11 @@
 
     <h3>Connection</h3>
     <div class="hint" id="conn-info" style="margin-top:0"></div>
-    <div class="actions"><button class="btn danger small" onclick="disconnect()">Disconnect this device</button></div>
+    <div id="conn-error"></div>
+    <div class="field" style="margin-top:12px"><label class="label" for="set-join">Reconnect with an invite link</label>
+      <input class="input" id="set-join" placeholder="Paste the link from the other phone" autocomplete="off" autocapitalize="off"></div>
+    <div class="actions"><button class="btn secondary small" onclick="joinFromSettings()">Reconnect</button>
+      <button class="btn danger small" onclick="disconnect()">Disconnect this device</button></div>
   </div>
 </div>
 
@@ -864,6 +868,22 @@ function setSync(state, err){
     state === 'saving' ? 'Saving' : state === 'offline' ? (n ? `Offline · ${n} to save` : 'Offline') : state === 'error' ? 'Sync issue' : '';
   el.title = state === 'error' && err ? err.message : '';
 }
+function syncReason(e){
+  const code = e && e.status ? String(e.status) : '';
+  const why = {
+    '401': 'Airtable rejected the access token on this phone (it may have been changed or deleted).',
+    '403': 'The access token on this phone isn’t allowed to use this base.',
+    '404': 'Airtable can’t find the base or the Chopping List table this phone is set up for.',
+    '422': 'The Chopping List table is missing a field the app needs.',
+    '429': 'Airtable is rate-limiting requests. It should clear on its own in a minute.',
+  }[code] || (code ? `Airtable returned an error (HTTP ${code}).` : 'Couldn’t reach Airtable.');
+  const fix = ['401','403','404'].includes(code) ? ' Fix: open an invite link from the other phone, or paste one in Settings → Connection.' : '';
+  return why + fix;
+}
+function syncTap(){
+  if (syncState === 'error') { showToast(syncReason(syncErr), 'Retry', () => refresh(true), 9000); return; }
+  refresh(true);
+}
 function errSuffix(e){
   const code = e && e.status ? String(e.status) : '';
   if (!code) return navigator.onLine === false ? ' — you look offline.' : '.';
@@ -931,6 +951,26 @@ async function shareInvite(){
   if (navigator.share) { try { await navigator.share({ title:'Chopping List', text, url: link }); return; } catch(e){ if (e && e.name === 'AbortError') return; } }
   try { await navigator.clipboard.writeText(link); showToast('Invite link copied — send it to your partner'); }
   catch(e){ prompt('Copy this link and send it to your partner:', link); }
+}
+// Point an already-connected phone at the base/token in an invite (e.g. after the token was changed).
+function applyInvite(inv, silent){
+  const same = CONFIG && CONFIG.baseId === inv.b && CONFIG.pat === inv.p;
+  if (same) { if (!silent) showToast('This phone already uses that connection'); return false; }
+  const otherBase = !CONFIG || CONFIG.baseId !== inv.b;
+  CONFIG = Object.assign({}, CONFIG, { baseId: inv.b, pat: inv.p });
+  delete CONFIG.schema;                       // re-check the table's fields with the new token
+  if (otherBase) { items = []; pending = { creates: [], updates: {}, deletes: [] }; }
+  saveConfig(); persist();
+  syncState = 'ok'; syncErr = null;
+  return true;
+}
+function joinFromSettings(){
+  const inv = parseInvite(document.getElementById('set-join').value);
+  if (!inv) { showToast('That doesn’t look like a Chopping List invite link'); return; }
+  if (!applyInvite(inv)) return;
+  closeSheet('set-ov');
+  showApp();
+  showToast('Reconnected — syncing now');
 }
 function disconnect(){
   if (!confirm('Disconnect this phone from the list? The list itself stays in Airtable.')) return;
@@ -1239,6 +1279,8 @@ function deleteFromSheet(){
 function openSettings(){
   document.getElementById('set-name').value = me();
   document.getElementById('conn-info').innerHTML = `Connected to Airtable base <code>${escapeHtml(CONFIG.baseId)}</code>, table “${TABLE}”. ${lastSync ? 'Last synced ' + new Date(lastSync).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }) + '.' : ''}`;
+  document.getElementById('set-join').value = '';
+  document.getElementById('conn-error').innerHTML = syncState === 'error' ? `<div class="error" style="margin-top:10px">${escapeHtml(syncReason(syncErr))}</div>` : '';
   const mode = installMode(), sec = document.getElementById('install-section');
   sec.hidden = !mode;
   if (mode) document.getElementById('install-body').innerHTML = escapeHtml(installHint()) + (mode === 'prompt' ? '<div class="actions"><button class="btn small" onclick="installApp()">Install Chopping List</button></div>' : '');
@@ -1278,13 +1320,13 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); defe
 window.addEventListener('appinstalled', () => { deferredInstall = null; showToast('Installed — open it from your home screen'); render(); });
 
 let toastTimer = null;
-function showToast(msg, actLabel, act){
+function showToast(msg, actLabel, act, ms){
   const t = document.getElementById('toast'), b = document.getElementById('toast-act');
   document.getElementById('toast-msg').textContent = msg;
   b.hidden = !actLabel;
   if (actLabel) { b.textContent = actLabel; b.onclick = () => { t.classList.remove('show'); act(); }; }
   t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), actLabel ? 5000 : 2600);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms || (actLabel ? 5000 : 2600));
 }
 
 /* ============================================================
@@ -1312,13 +1354,24 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('in-name').focus();
     return;
   }
-  if (inv) history.replaceState(null, '', location.pathname + location.search);
+  if (inv) {
+    history.replaceState(null, '', location.pathname + location.search);
+    if (applyInvite(inv, true)) setTimeout(() => showToast('Updated this phone’s connection from the invite link'), 600);
+  }
   if (CONFIG && CONFIG.baseId && CONFIG.pat) showApp();
   else document.getElementById('setup').hidden = false;
 });
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh(); });
 window.addEventListener('focus', () => refresh());
 window.addEventListener('online', () => refresh());
+// An invite opened while the app is already showing only changes the #hash, so no reload happens.
+window.addEventListener('hashchange', () => {
+  const inv = parseInvite(location.hash);
+  if (!inv) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!(CONFIG && CONFIG.pat)) { location.reload(); return; }
+  if (applyInvite(inv, true)) { showApp(); showToast('Updated this phone’s connection from the invite link'); }
+});
 </script>
 </body>
 </html>
