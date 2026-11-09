@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<meta name="theme-color" content="#F7FCF8">
+<meta name="theme-color" content="#FFFAF7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Chopping List">
@@ -17,28 +17,28 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    /* No greys: every neutral is a light green tint, and text is deep green rather than black. */
-    --bg:#F7FCF8; --surface:#FFFFFF; --surface-2:#EAF7EE; --border:#D4EEDC;
-    --text:#173D2A; --text-dim:#3F7A5A; --text-faint:#8CC2A2;
-    --accent:#1E8E4E; --accent-soft:#DFF5E7; --accent-ink:#FFFFFF; --warn:#C9831C; --danger:#D2493B;
-    --shadow:0 1px 2px rgba(36,160,90,.06), 0 6px 18px rgba(36,160,90,.08);
-    --overlay:rgba(23,61,42,.28); --knob-shadow:rgba(23,61,42,.25);
+    /* White and peach, no greys: neutrals are peach tints, text is warm brown rather than black. */
+    --bg:#FFFAF7; --surface:#FFFFFF; --surface-2:#FFF0E8; --border:#FBDCCB;
+    --text:#4A2A1E; --text-dim:#9A5A41; --text-faint:#E2AD95;
+    --accent:#D2643C; --accent-soft:#FFE7DB; --accent-ink:#FFFFFF; --warn:#C27A12; --danger:#C93F3F;
+    --shadow:0 1px 2px rgba(210,100,60,.06), 0 6px 18px rgba(210,100,60,.08);
+    --overlay:rgba(74,42,30,.28); --knob-shadow:rgba(74,42,30,.25);
     color-scheme:light;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
-      --bg:#0F2A1E; --surface:#153626; --surface-2:#1C4531; --border:#25563D;
-      --text:#EAF8EF; --text-dim:#A8D9BC; --text-faint:#5E9C7A;
-      --accent:#6DD69B; --accent-soft:#1E4D35; --accent-ink:#0B2318; --warn:#F0B45E; --danger:#F08574;
-      --shadow:none; --overlay:rgba(6,26,17,.6); --knob-shadow:rgba(6,26,17,.4);
+      --bg:#2A1913; --surface:#35211A; --surface-2:#442B21; --border:#5A3929;
+      --text:#FFF1EA; --text-dim:#F2BFA7; --text-faint:#A26C55;
+      --accent:#FFA27E; --accent-soft:#5A3426; --accent-ink:#2A1913; --warn:#F2B45A; --danger:#FF8C7A;
+      --shadow:none; --overlay:rgba(26,12,8,.6); --knob-shadow:rgba(26,12,8,.4);
       color-scheme:dark;
     }
   }
   :root[data-theme="dark"]{
-    --bg:#0F2A1E; --surface:#153626; --surface-2:#1C4531; --border:#25563D;
-    --text:#EAF8EF; --text-dim:#A8D9BC; --text-faint:#5E9C7A;
-    --accent:#6DD69B; --accent-soft:#1E4D35; --accent-ink:#0B2318; --warn:#F0B45E; --danger:#F08574;
-    --shadow:none; --overlay:rgba(6,26,17,.6); --knob-shadow:rgba(6,26,17,.4);
+    --bg:#2A1913; --surface:#35211A; --surface-2:#442B21; --border:#5A3929;
+    --text:#FFF1EA; --text-dim:#F2BFA7; --text-faint:#A26C55;
+    --accent:#FFA27E; --accent-soft:#5A3426; --accent-ink:#2A1913; --warn:#F2B45A; --danger:#FF8C7A;
+    --shadow:none; --overlay:rgba(26,12,8,.6); --knob-shadow:rgba(26,12,8,.4);
     color-scheme:dark;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -106,7 +106,7 @@
   .add .input{flex:1;}
   .add .btn{padding:0 16px;}
   .suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--border);border-radius:12px;
-    box-shadow:0 10px 30px rgba(23,61,42,.14);overflow:hidden;z-index:6;}
+    box-shadow:0 10px 30px rgba(74,42,30,.14);overflow:hidden;z-index:6;}
   .suggest button{display:flex;width:100%;align-items:center;gap:10px;text-align:left;border:none;background:none;padding:11px 14px;border-bottom:1px solid var(--border);}
   .suggest button:last-child{border-bottom:none;}
   .suggest button.hl, .suggest button:hover{background:var(--surface-2);}
