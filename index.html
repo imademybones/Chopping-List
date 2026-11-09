@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -8,8 +8,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<meta name="theme-color" content="#F5F6F1" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#181B19" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#F7FCF8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Chopping List">
@@ -18,27 +17,28 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#F5F6F1; --surface:#FFFFFF; --surface-2:#ECEEE7; --border:#DFE2D8;
-    --text:#1C201D; --text-dim:#646B65; --text-faint:#A2A8A2;
-    --accent:#2F8A4F; --accent-soft:#E2F1E6; --accent-ink:#FFFFFF; --warn:#B7791F; --danger:#BE4A3C;
-    --shadow:0 1px 2px rgba(0,0,0,.04), 0 6px 18px rgba(0,0,0,.06);
-    --overlay:rgba(16,20,17,.38);
+    /* No greys: every neutral is a light green tint, and text is deep green rather than black. */
+    --bg:#F7FCF8; --surface:#FFFFFF; --surface-2:#EAF7EE; --border:#D4EEDC;
+    --text:#173D2A; --text-dim:#3F7A5A; --text-faint:#8CC2A2;
+    --accent:#1E8E4E; --accent-soft:#DFF5E7; --accent-ink:#FFFFFF; --warn:#C9831C; --danger:#D2493B;
+    --shadow:0 1px 2px rgba(36,160,90,.06), 0 6px 18px rgba(36,160,90,.08);
+    --overlay:rgba(23,61,42,.28); --knob-shadow:rgba(23,61,42,.25);
     color-scheme:light;
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
-      --bg:#181B19; --surface:#212522; --surface-2:#2A2F2B; --border:#343A35;
-      --text:#E9ECE6; --text-dim:#9AA29B; --text-faint:#5F6760;
-      --accent:#5DBB7C; --accent-soft:#25382B; --accent-ink:#0F1A12; --warn:#E0A84E; --danger:#E07565;
-      --shadow:none; --overlay:rgba(0,0,0,.6);
+      --bg:#0F2A1E; --surface:#153626; --surface-2:#1C4531; --border:#25563D;
+      --text:#EAF8EF; --text-dim:#A8D9BC; --text-faint:#5E9C7A;
+      --accent:#6DD69B; --accent-soft:#1E4D35; --accent-ink:#0B2318; --warn:#F0B45E; --danger:#F08574;
+      --shadow:none; --overlay:rgba(6,26,17,.6); --knob-shadow:rgba(6,26,17,.4);
       color-scheme:dark;
     }
   }
   :root[data-theme="dark"]{
-    --bg:#181B19; --surface:#212522; --surface-2:#2A2F2B; --border:#343A35;
-    --text:#E9ECE6; --text-dim:#9AA29B; --text-faint:#5F6760;
-    --accent:#5DBB7C; --accent-soft:#25382B; --accent-ink:#0F1A12; --warn:#E0A84E; --danger:#E07565;
-    --shadow:none; --overlay:rgba(0,0,0,.6);
+    --bg:#0F2A1E; --surface:#153626; --surface-2:#1C4531; --border:#25563D;
+    --text:#EAF8EF; --text-dim:#A8D9BC; --text-faint:#5E9C7A;
+    --accent:#6DD69B; --accent-soft:#1E4D35; --accent-ink:#0B2318; --warn:#F0B45E; --danger:#F08574;
+    --shadow:none; --overlay:rgba(6,26,17,.6); --knob-shadow:rgba(6,26,17,.4);
     color-scheme:dark;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -80,7 +80,7 @@
   .seg button{border:none;background:transparent;padding:6px 12px;border-radius:7px;font-size:13px;font-weight:500;color:var(--text-dim);}
   .seg button.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow);}
   .switch{width:44px;height:26px;border-radius:13px;background:var(--surface-2);border:1px solid var(--border);position:relative;flex-shrink:0;padding:0;}
-  .switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s;}
+  .switch::after{content:"";position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--surface);box-shadow:0 1px 3px var(--knob-shadow);transition:transform .18s;}
   .switch.on{background:var(--accent);border-color:var(--accent);}
   .switch.on::after{transform:translateX(18px);}
 
@@ -106,7 +106,7 @@
   .add .input{flex:1;}
   .add .btn{padding:0 16px;}
   .suggest{position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--border);border-radius:12px;
-    box-shadow:0 10px 30px rgba(0,0,0,.14);overflow:hidden;z-index:6;}
+    box-shadow:0 10px 30px rgba(23,61,42,.14);overflow:hidden;z-index:6;}
   .suggest button{display:flex;width:100%;align-items:center;gap:10px;text-align:left;border:none;background:none;padding:11px 14px;border-bottom:1px solid var(--border);}
   .suggest button:last-child{border-bottom:none;}
   .suggest button.hl, .suggest button:hover{background:var(--surface-2);}
@@ -166,7 +166,7 @@
   .hidden-note button{border:none;background:none;padding:0;color:var(--accent);font-weight:600;font-size:13px;}
 
   .due{background:var(--accent-soft);border-radius:14px;padding:12px 14px;margin-bottom:18px;}
-  .due-h{font-size:13px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+  .due-h{font-size:13px;font-weight:600;margin-bottom:8px;line-height:1.4;}
   .due-h span{font-weight:400;color:var(--text-dim);}
   .chips{display:flex;flex-wrap:wrap;gap:7px;}
   .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);
@@ -353,8 +353,8 @@
 
     <h3>Appearance</h3>
     <div class="seg" id="theme-seg">
-      <button data-theme="auto" onclick="setTheme('auto')">Auto</button>
       <button data-theme="light" onclick="setTheme('light')">Light</button>
+      <button data-theme="auto" onclick="setTheme('auto')">Match phone</button>
       <button data-theme="dark" onclick="setTheme('dark')">Dark</button>
     </div>
 
@@ -558,7 +558,7 @@ function parseQty(raw){
   return { name: s, qty: 0 };
 }
 function storesOf(it){ return Array.isArray(it.Stores) ? it.Stores : []; }
-function storeColor(k){ const s = STORES.find(x => x.key === k); return s ? s.color : '#888'; }
+function storeColor(k){ const s = STORES.find(x => x.key === k); return s ? s.color : 'var(--accent)'; }
 function storeTags(it){ return storesOf(it).map(k => `<span class="tag" style="--c:${storeColor(k)}">${escapeHtml(k)}</span>`).join(''); }
 // With a shop picked, show what's tagged for it plus anything untagged.
 function availableAt(it, store){ const st = storesOf(it); return !store || !st.length || st.includes(store); }
@@ -1295,7 +1295,7 @@ function closeSheet(id){ document.getElementById(id).classList.remove('open'); i
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(o => closeSheet(o.id)); });
 
 function applyTheme(){
-  const t = (CONFIG && CONFIG.theme) || 'auto';
+  const t = (CONFIG && CONFIG.theme) || 'light';
   if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t);
   document.querySelectorAll('#theme-seg button').forEach(b => b.classList.toggle('on', b.dataset.theme === t));
 }
